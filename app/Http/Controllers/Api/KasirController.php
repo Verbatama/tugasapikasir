@@ -69,4 +69,56 @@ class KasirController extends Controller
 
         return new KasirResource(true, 'Data Kasir Berhasil Dihapus', null);
     }
+
+     public function transaksi(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'no_bon' => 'required|string|unique:invoices',
+            'tanggal' => 'required|date',
+            'items' => 'required|array',
+            'items.*.id' => 'required|exists:items,id',
+            'items.*.jumlah' => 'required|numeric|min:1',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $invoice = Invoice::create([
+            'no_bon' => $request->no_bon,
+            'tanggal' => $request->tanggal,
+            'total_harga' => 0,
+        ]);
+
+        $totalHarga = 0;
+        foreach ($request->items as $itemData) {
+            $item = Item::findOrFail($itemData['id']);
+            $totalHarga += $item->harga * $itemData['jumlah'];
+
+            $invoice->items()->attach($item->id, [
+                'jumlah' => $itemData['jumlah'],
+                'total_harga' => $item->harga * $itemData['jumlah'],
+            ]);
+        }
+
+        $invoice->update(['total_harga' => $totalHarga]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Transaksi berhasil',
+            'data' => $invoice,
+        ]);
+    }
+
+    public function lihatTransaksi($id)
+    {
+        $invoice = Invoice::with('items')->findOrFail($id);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Transaksi ditemukan',
+            'data' => $invoice,
+        ]);
+    }
+
+
 }
